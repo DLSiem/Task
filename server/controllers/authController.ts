@@ -2,6 +2,7 @@ import type { Request, Response } from 'express'
 import User from '../models/User'
 import bcryptjs from 'bcryptjs'
 import jwt from 'jsonwebtoken'
+import { createSecretToken } from '../utils/SecretToken'
 
 let refreshTokens: string[] = []
 
@@ -24,17 +25,18 @@ export const signin = async (req: Request, res: Response): Promise<any> => {
     }
 
     // genertae jwt token
-    const accessToken: string = jwt.sign(
-      { email: user.email, userId: user._id },
-      process.env.ACCESS_TOKEN_SECRET,
-      { expiresIn: '20m' }
-    )
-    const refreshToken: string = jwt.sign(
-      { email: user.email, userId: user._id },
-      process.env.REFRESH_TOKEN_SECRET
-    )
-    refreshTokens.push(refreshToken)
-    res.status(200).json({ accessToken, refreshToken })
+    const token = createSecretToken(user._id)
+    res.cookie('token', token, {
+      httpOnly: false
+    })
+    res.status(200).json({ message: 'User logged in successfully', user })
+
+    // const refreshToken: string = jwt.sign(
+    //   { email: user.email, userId: user._id },
+    //   process.env.REFRESH_TOKEN_SECRET
+    // )
+    // refreshTokens.push(refreshToken)
+    // res.status(200).json({ accessToken, refreshToken, user })
   } catch (err) {
     console.log(err)
   }
@@ -52,9 +54,15 @@ export const signup = async (req: Request, res: Response): Promise<void> => {
         const hashedpassword = await bcryptjs.hash(password, 10)
         const name = email.split('@')[0]
         const user = { name, email, password: hashedpassword }
-        const newUser = new User(user)
-        await newUser.save().then(() => {
-          res.status(201).json({ message: 'User created' })
+        const newUser = await User.create(user)
+        const token = createSecretToken(newUser._id)
+        res.cookie('token', token, {
+          httpOnly: false
+        })
+        res.status(201).json({
+          message: 'User created successfully',
+          success: true,
+          user: newUser
         })
       } catch (error) {
         res.status(400).json({ message: error })
